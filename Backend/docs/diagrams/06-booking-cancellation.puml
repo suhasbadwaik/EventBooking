@@ -1,0 +1,27 @@
+@startuml
+title Activity 6: Booking Cancellation
+
+start
+:Customer/Admin logs in;
+:Client sends Authorization: Bearer <token>;
+:DELETE /api/bookings/{id};
+:@PreAuthorize CUSTOMER or ADMIN;
+:Extract userId from token;
+:BookingServiceImpl.cancelBooking(bookingId, userId);
+:Find booking by id;
+:Find current user by userId;
+if (booking.customerId == userId OR currentUser.role == ADMIN?) then (allowed)
+  if (booking.status == CANCELLED OR COMPLETED?) then (blocked)
+    :Return error (Cannot cancel cancelled/completed booking);
+    stop
+  endif
+  :Release availability -> AVAILABLE;
+  :Set booking.status = CANCELLED;
+  :Save availability + booking;
+  :Return 204 No Content;
+  stop
+else (not allowed)
+  :Return error (no permission to cancel);
+  stop
+endif
+@enduml

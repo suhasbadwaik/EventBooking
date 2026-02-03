@@ -1,0 +1,58 @@
+@startuml
+title Activity 5: Booking & Payment (Razorpay)
+
+start
+:Customer/Admin logs in;
+:Client sends Authorization: Bearer <token>;
+
+:Select venue + availability slot;
+:POST /api/bookings (BookingRequest{availabilityId});
+:@PreAuthorize CUSTOMER or ADMIN;
+:Extract customerId from token;
+:BookingServiceImpl.createBooking(request, customerId);
+:Find customer by id;
+:Find availability by request.availabilityId;
+if (availability.status != AVAILABLE?) then (not available)
+  :Return error (slot not available);
+  stop
+endif
+if (availability.startTime < now?) then (past)
+  :Return error (Cannot book a past slot);
+  stop
+endif
+:venue = availability.venue;
+:Compute totalAmount = pricePerHour * hours(rounded up);
+:Create Booking (status=PENDING) + save;
+:Mark availability status = BOOKED + save;
+
+:Create Razorpay order (createOrder(amount, bookingId));
+if (Order created?) then (yes)
+  :Save booking.razorpayOrderId;
+  :Return 200 OK (BookingResponse with orderId);
+else (no)
+  :Throw error (Failed to create payment order);
+  stop
+endif
+
+partition "Client Payment Confirmation" {
+  :Client completes payment on Razorpay UI;
+  :POST /api/bookings/confirm-payment\n(orderId, paymentId, signature);
+  :BookingServiceImpl.confirmPayment(orderId, paymentId, signature);
+  :Find booking by razorpayOrderId;
+  :razorpayService.verifyPayment(orderId,paymentId,signature);
+  if (Signature valid?) then (yes)
+    :Set paymentStatus=SUCCESS;
+    :Set booking.status=CONFIRMED;
+    :Save booking;
+    :Return 200 OK (BookingResponse CONFIRMED);
+  else (no)
+    :Set paymentStatus=FAILED;
+    :Set booking.status=CANCELLED;
+    :Release availability -> AVAILABLE;
+    :Save availability + booking;
+    :Return error (Payment verification failed);
+  endif
+}
+
+stop
+@enduml

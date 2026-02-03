@@ -1,0 +1,70 @@
+@startuml
+title Activity 3: Availability Scheduling (Create / Delete / View Slots)
+
+start
+:Owner/Admin logs in;
+:Client sends Authorization: Bearer <token>;
+
+if (Action?) then (Create slot)
+  :POST /api/availabilities (AvailabilityRequest);
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token;
+  :AvailabilityServiceImpl.createAvailability(request, ownerId);
+  :Find venue by request.venueId;
+  :Find current user by ownerId;
+  if (Owner OR Admin?) then (yes)
+    if (startTime > endTime?) then (invalid)
+      :Return error (Start time must be before end time);
+      stop
+    endif
+    if (startTime < now?) then (invalid)
+      :Return error (Start time must be in the future);
+      stop
+    endif
+    :Check overlap (findByVenueAndTimeRange);
+    if (Overlaps?) then (yes)
+      :Return error (overlapping slot);
+      stop
+    else (no)
+      :Create Availability (status=AVAILABLE) + save;
+      :Return 200 OK (AvailabilityResponse);
+      stop
+    endif
+  else (no)
+    :Return error (no permission);
+    stop
+  endif
+
+elseif (Delete slot)
+  :DELETE /api/availabilities/{id};
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token;
+  :AvailabilityServiceImpl.deleteAvailability(id, ownerId);
+  :Find availability + current user;
+  if (Owner OR Admin?) then (yes)
+    if (availability.status == BOOKED?) then (yes)
+      :Return error (Cannot delete a booked slot);
+    else (no)
+      :Delete availability;
+      :Return 204 No Content;
+    endif
+  else (no)
+    :Return error (no permission);
+  endif
+  stop
+
+else (View slots)
+  if (Public view?) then (yes)
+    :GET /api/availabilities/public/venue/{venueId};
+    :availabilityService.getAvailabilitiesByVenue(venueId)\n(available slots from now);
+    :Return 200 OK (List<AvailabilityResponse>);
+  else (Owner/Admin view all) 
+    :GET /api/availabilities/venue/{venueId};
+    :@PreAuthorize VENUE_OWNER or ADMIN;
+    :availabilityService.getAllAvailabilitiesByVenue(venueId);
+    :Return 200 OK (List<AvailabilityResponse>);
+  endif
+  stop
+endif
+
+@enduml

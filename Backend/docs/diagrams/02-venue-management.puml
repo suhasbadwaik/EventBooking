@@ -1,0 +1,52 @@
+@startuml
+title Activity 2: Venue Management (Create / Update / Delete / My Venues)
+
+start
+:Venue Owner/Admin logs in;
+:Client sends Authorization: Bearer <token>;
+
+if (Action?) then (Create)
+  :POST /api/venues (VenueRequest);
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token (JwtUtil.getUserIdFromToken);
+  :VenueServiceImpl.createVenue(request, ownerId);
+  :userService.findById(ownerId);
+  :Build Venue entity + save;
+  :Return 200 OK (VenueResponse);
+  stop
+elseif (Update)
+  :PUT /api/venues/{id} (VenueRequest);
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token;
+  :VenueServiceImpl.updateVenue(id, request, ownerId);
+  :Find venue by id;
+  :Find current user by ownerId;
+  if (Owner OR Admin?) then (yes)
+    :Update fields + save;
+    :Return 200 OK (VenueResponse);
+  else (no)
+    :Return error (no permission);
+  endif
+  stop
+elseif (Delete)
+  :DELETE /api/venues/{id};
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token;
+  :VenueServiceImpl.deleteVenue(id, ownerId);
+  :Find venue + current user;
+  if (Owner OR Admin?) then (yes)
+    :Delete venue;
+    :Return 204 No Content;
+  else (no)
+    :Return error (no permission);
+  endif
+  stop
+else (View my venues)
+  :GET /api/venues/my-venues;
+  :@PreAuthorize VENUE_OWNER or ADMIN;
+  :Extract ownerId from token;
+  :VenueServiceImpl.getVenuesByOwner(ownerId);
+  :Return 200 OK (List<VenueResponse>);
+  stop
+endif
+@enduml

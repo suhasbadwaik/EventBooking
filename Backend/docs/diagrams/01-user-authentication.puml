@@ -1,0 +1,52 @@
+@startuml
+title Activity 1: User Authentication (Register + Login + JWT)
+
+start
+:User opens app;
+if (New user?) then (register)
+  :Enter registration details;
+  :POST /api/auth/register OR /api/users/register;
+  :AuthController.register / UserController.register;
+  :AuthServiceImpl.register / UserManagementService.createUser;
+  if (Email already exists?) then (yes)
+    :Return error (Email already exists);
+    stop
+  else (no)
+    :Encode password;
+    :Save User (active=true);
+    :Return 200 OK (UserResponse);
+  endif
+endif
+
+:Enter email + password;
+:POST /api/auth/login;
+:AuthController.login;
+:AuthServiceImpl.login;
+:authenticationManager.authenticate(email,password);
+if (Credentials valid?) then (yes)
+  :Find user by email;
+  if (user.active?) then (yes)
+    :jwtUtil.generateToken(email, role, userId);
+    :Return 200 OK (token + user details);
+  else (no)
+    :Return error (inactive account);
+  endif
+else (no)
+  :Return 401 Unauthorized;
+endif
+
+partition "For subsequent protected API calls" {
+  :Client sends Authorization: Bearer <token>;
+  :JwtAuthenticationFilter extracts token;
+  :jwtUtil.getEmailFromToken(token);
+  if (validateToken?) then (valid)
+    :loadUserByUsername(email);
+    :Set SecurityContext (ROLE_*);
+    :@PreAuthorize checks pass/fail;
+  else (invalid)
+    :Request treated as unauthenticated;
+  endif
+}
+
+stop
+@enduml

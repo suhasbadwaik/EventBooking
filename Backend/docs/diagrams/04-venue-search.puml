@@ -1,0 +1,18 @@
+@startuml
+title Activity 4: Venue Search (Public)
+
+start
+:User opens venues page;
+:GET /api/venues/public/all?city=&searchTerm=;
+:VenueController.getAllVenues(city, searchTerm);
+if (city != null OR searchTerm != null?) then (filter)
+  :VenueServiceImpl.searchVenues(city, searchTerm);
+  :venueRepository.searchVenues(city, searchTerm);
+  :Return 200 OK (filtered List<VenueResponse>);
+else (all)
+  :VenueServiceImpl.getAllVenues();
+  :venueRepository.findByActive(true);
+  :Return 200 OK (List<VenueResponse>);
+endif
+stop
+@enduml
